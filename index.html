@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coxon's Fretboard Strategic Simulator</title>
+    <style>
+        :root {
+            --fretboard-bg: #1a120b;
+            --string-color: #e8e8e8;
+            --fret-color: #ffd700;
+            --bg-color: #050505;
+            --text-color: #00ffcc;
+            --accent: #ff0055;
+            --panel-bg: #111;
+            --concert-light: rgba(255, 0, 85, 0.05);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            overflow: hidden;
+            transition: background 0.1s ease;
+        }
+
+        .concert-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 50% 50%, var(--concert-light), transparent);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        #game-container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 20px auto;
+            border: 1px solid #333;
+            padding: 25px;
+            background: rgba(17, 17, 17, 0.95);
+            box-shadow: 0 0 100px rgba(0,0,0,1);
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 { 
+            text-align: center; 
+            letter-spacing: 5px; 
+            color: var(--accent);
+            margin: 0;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #555;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        #fretboard-container {
+            position: relative;
+            padding: 30px 0;
+            background: linear-gradient(180deg, #111, #2a1e15 50%, #111);
+            border-radius: 8px;
+            border: 2px solid #444;
+            overflow: hidden;
+        }
+
+        #fretboard {
+            position: relative;
+            height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .string-wrapper {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .string {
+            height: 2px;
+            background: linear-gradient(180deg, #fff, var(--string-color), #666);
+            width: 100%;
+            position: relative;
+            z-index: 2;
+            transform-origin: center;
+        }
+
+        .vibrate { animation: stringVib 0.05s infinite; }
+
+        @keyframes stringVib {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-1.5px); }
+            100% { transform: translateY(0); }
+        }
+
+        .fret {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(90deg, #333, var(--fret-color), #333);
+            z-index: 1;
+            opacity: 0.5;
+        }
+
+        .note-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent);
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 20px var(--accent);
+            border: 2px solid white;
+            pointer-events: none;
+            animation: notePop 0.2s ease-out;
+        }
+
+        .note-marker.coxon {
+            background: #00ffee;
+            box-shadow: 0 0 20px #00ffee;
+            width: 28px;
+            height: 28px;
+        }
+
+        @keyframes notePop {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stats-panel {
+            padding: 12px;
+            background: #000;
+            border: 1px solid #222;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            color: #33ff33;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #dialogue-box {
+            background: rgba(0,0,0,0.9);
+            padding: 15px;
+            border-left: 5px solid var(--accent);
+            min-height: 80px;
+            font-style: italic;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #222;
+            color: #eee;
+            border: 1px solid #444;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover:not(:disabled) {
+            border-color: var(--accent);
+            background: #333;
+        }
+
+        button.active {
+            background: var(--accent);
+            box-shadow: 0 0 20px var(--accent);
+        }
+
+        #debug-console {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            color: #55ff55;
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            overflow-y: scroll;
+            padding: 10px;
+            border: 1px solid #222;
+            margin-top: 20px;
+            box-sizing: border-box;
+        }
+
+        .shields-active {
+            animation: shieldsBlur 0.1s infinite alternate;
+        }
+
+        @keyframes shieldsBlur {
+            from { filter: blur(0px) contrast(1.2); }
+            to { filter: blur(2px) contrast(1.8); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="concert-bg" id="lights"></div>
+
+    <div id="game-container">
+        <h1>Coxon's Fretboard</h1>
+        <div class="subtitle">Strategic Simulator</div>
+        
+        <div class="dashboard">
+            <div class="stats-panel">
+                <div>BPM: <span id="stat-bpm">0</span></div>
+                <div>ANALIZA: <span id="stat-quality">WCIŚNIJ</span></div>
+            </div>
+            <div id="dialogue-box">
+                <span id="speaker" style="color: var(--accent); font-weight: bold; margin-right: 15px;">GRAHAM:</span>
+                <span id="text">Podłączony pod Marshalla. Jaguar jest gotowy na przesterowaną wojnę.</span>
+            </div>
+            <div class="stats-panel" style="text-align: right;">
+                <div>MODE: <span id="stat-mod">DISTORTED</span></div>
+                <div>PURYZM: <span id="stat-score">0</span>%</div>
+            </div>
+        </div>
+
+        <div id="fretboard-container">
+            <div id="fretboard" onmousedown="handleInstantClick(event)">
+                <div class="string-wrapper"><div class="string" id="s0"></div></div>
+                <div class="string-wrapper"><div class="string" id="s1"></div></div>
+                <div class="string-wrapper"><div class="string" id="s2"></div></div>
+                <div class="string-wrapper"><div class="string" id="s3"></div></div>
+                <div class="string-wrapper"><div class="string" id="s4"></div></div>
+                <div class="string-wrapper"><div class="string" id="s5"></div></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="riff-btn" onclick="playPlayerRiff()">ODPAL SOLÓWKĘ</button>
+            <button id="shields-btn" onclick="toggleShieldsMode()">SHIELDS EFFECT (OFF)</button>
+            <button onclick="resetGame()">CLEAN CHANNEL</button>
+        </div>
+
+        <div id="debug-console">
+            [BOOT] Silnik Jaguar-Distortion v1.1 załadowany.<br>
+            [BOOT] Puryzm brzmieniowy Maddoxa ustawiony na 100%.<br>
+            [BOOT] Generator odpowiedzi Coxona zainicjalizowany.<br>
+            [BOOT] Dave Rowntree pilnuje beatu.
+        </div>
+    </div>
+
+<script>
+    /**
+     * MUSICAL THEORY & PHYSICS ENGINE
+     */
+    const SCALES = {
+        ionian: [0, 2, 4, 5, 7, 9, 11],
+        dorian: [0, 2, 3, 5, 7, 9, 10],
+        mixolydian: [0, 2, 4, 5, 7, 9, 10],
+        aeolian: [0, 2, 3, 5, 7, 8, 10],
+        blues: [0, 3, 5, 6, 7, 10]
+    };
+
+    const STRING_FREQS = [329.63, 246.94, 196.00, 146.83, 110.00, 82.41];
+
+    const state = {
+        playerNotes: [],
+        isShieldsMode: false,
+        isThinking: false,
+        fretCount: 16,
+        audioCtx: null,
+        masterGain: null,
+        distortion: null,
+        lastNoteTime: 0,
+        currentBPM: 0,
+        melodyScore: 0,
+        lastCoxonFret: 7
+    };
+
+    // POOL ODPOWIEDZI GRAHAMA
+    const COXON_QUOTES = {
+        highPuryzm: [
+            "Te interwały... Maddox byłby dumny. Czysta aerodynamika dźwięku!",
+            "To jest ten moment, kiedy Jaguar zaczyna oddychać. Perfekcyjny riff.",
+            "Właśnie o to chodzi! Żadnego skracania metod, tylko czysta, nasycona fala.",
+            "Słyszysz to nasycenie? To jest puryzm, którego Bonehead nigdy nie zrozumie."
+        ],
+        midPuryzm: [
+            "Całkiem nieźle. Czuć w tym ducha 'Beetlebum', ale Jaguar chce więcej brudu.",
+            "Dobra struktura. Masz ten dryg do budowania napięcia jak Knopfler.",
+            "Dave trzyma rytm, ty trzymaj te przewroty. Robi się ciekawie.",
+            "Niezły flow. Nie urwałeś beatu w połowie, to się liczy."
+        ],
+        lowPuryzm: [
+            "Trochę rzęzi, ale Jaguar kocha taki art-noise. Nie przestawaj!",
+            "To brzmi jakby Liam Gallagher próbował nastroić gitarę. Ale ma to swój urok.",
+            "Chaos! Ale wiesz co? W chaosie jest siła. Tylko nie usuwaj mi tu żadnych metod!",
+            "Prawie jak w 'Song 2' po trzecim piwie. Surowe, ale szczere."
+        ],
+        shields: [
+            "Kevin Shields właśnie wszedł na scenę. Robimy ścianę dźwięku!",
+            "Shoegaze to warstwy. Muskanie strun przy takim sprzężeniu to sztuka.",
+            "Gęsto... gęściej... to jest ten wielowarstwowy vibe, którego szukaliśmy.",
+            "Wibrato Shieldsa i mój przester. To jest strategiczne zwycięstwo."
+        ],
+        oasisWar: [
+            "Oasis? To tylko proste akordy. My tu budujemy aerodynamikę melodiczną!",
+            "Zaraz zagram coś, co sprawi, że Noel Gallagher schowa się do szafy.",
+            "Nie bój się tych przewrotów. Puryzm to nasza jedyna broń przeciwko Britpopowej nudzie."
+        ]
+    };
+
+    /**
+     * INITIALIZATION & AUDIOPHYSICS
+     */
+    function init() {
+        const fb = document.getElementById('fretboard');
+        for (let i = 0; i <= state.fretCount; i++) {
+            const f = document.createElement('div');
+            f.className = 'fret';
+            f.style.left = `${(i / state.fretCount) * 100}%`;
+            fb.appendChild(f);
+        }
+
+        window.addEventListener('mousedown', () => {
+            if (!state.audioCtx) {
+                state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Pure Jaguar Distortion Curve
+                state.distortion = state.audioCtx.createWaveShaper();
+                state.distortion.curve = makeDistortionCurve(700); 
+                state.distortion.oversample = '4x';
+
+                state.masterGain = state.audioCtx.createGain();
+                
+                state.distortion.connect(state.masterGain);
+                state.masterGain.connect(state.audioCtx.destination);
+                
+                logDebug("Jaguar Engine: DISTORTED MODE ACTIVE. Tubes are glowing.");
+            }
+        }, { once: true });
+    }
+
+    function makeDistortionCurve(amount) {
+        const k = amount;
+        const n_samples = 44100;
+        const curve = new Float32Array(n_samples);
+        for (let i = 0 ; i < n_samples; ++i ) {
+            const x = i * 2 / n_samples - 1;
+            curve[i] = ( 1 + k ) * x / ( 1 + k * Math.abs(x) );
+        }
+        return curve;
+    }
+
+    /**
+     * INPUT HANDLING
+     */
+    function handleInstantClick(e) {
+        if (state.isThinking) return;
+
+        const rect = document.getElementById('fretboard').getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const fret = Math.floor((x / rect.width) * state.fretCount);
+        const stringIdx = Math.floor((y / rect.height) * 6);
+
+        const now = Date.now();
+        if (state.lastNoteTime > 0) {
+            state.currentBPM = Math.round(60000 / (now - state.lastNoteTime));
+            document.getElementById('stat-bpm').innerText = state.currentBPM;
+        }
+        state.lastNoteTime = now;
+
+        addNote(fret, stringIdx, x, y, false);
+        triggerVisuals(1.0);
+    }
+
+    function addNote(fret, stringIdx, posX, posY, isCoxon) {
+        const freq = STRING_FREQS[stringIdx] * Math.pow(2, fret / 12);
+        const note = { fret, stringIdx, freq, time: Date.now() };
+        
+        if (!isCoxon) state.playerNotes.push(note);
+
+        const marker = document.createElement('div');
+        marker.className = `note-marker ${isCoxon ? 'coxon' : ''}`;
+        marker.style.left = isCoxon ? `${(fret / state.fretCount) * 100}%` : `${posX}px`;
+        marker.style.top = isCoxon ? `${(stringIdx / 5) * 100 + 8}%` : `${posY}px`;
+        document.getElementById('fretboard').appendChild(marker);
+        
+        setTimeout(() => marker.remove(), isCoxon ? 2500 : 1500);
+
+        const str = document.getElementById(`s${stringIdx}`);
+        str.classList.add('vibrate');
+        setTimeout(() => str.classList.remove('vibrate'), 80);
+
+        playTone(freq, isCoxon ? 1.2 : 0.8, isCoxon);
+
+        if (!isCoxon) {
+            analyzeMelody();
+            logDebug(`[JAGUAR] Pure Distortion Note: ${freq.toFixed(1)}Hz`);
+            if (state.playerNotes.length > 20) state.playerNotes.shift();
+        }
+    }
+
+    function analyzeMelody() {
+        if (state.playerNotes.length < 2) return;
+        
+        let localScore = 50;
+        const last = state.playerNotes[state.playerNotes.length - 1];
+        const prev = state.playerNotes[state.playerNotes.length - 2];
+        const diff = Math.abs((last.fret + (5*last.stringIdx)) - (prev.fret + (5*prev.stringIdx)));
+        
+        if (diff >= 1 && diff <= 5) localScore += 25; 
+        if (diff === 7) localScore += 30; 
+        if (state.currentBPM >= 100 && state.currentBPM <= 160) localScore += 15;
+
+        state.melodyScore = Math.round((state.melodyScore * 0.7) + (localScore * 0.3));
+        document.getElementById('stat-score').innerText = state.melodyScore;
+
+        const qual = document.getElementById('stat-quality');
+        if (state.melodyScore > 80) qual.innerText = "PURE COXON!";
+        else if (state.melodyScore > 50) qual.innerText = "STRATEGIC";
+        else qual.innerText = "RAW NOISE";
+    }
+
+    /**
+     * AUDIO SYNTHESIS
+     */
+    function playTone(freq, duration, isCoxon) {
+        if (!state.audioCtx) return;
+        const now = state.audioCtx.currentTime;
+        
+        const osc1 = state.audioCtx.createOscillator();
+        const osc2 = state.audioCtx.createOscillator();
+        const gain = state.audioCtx.createGain();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'square'; 
+        
+        osc1.frequency.setValueAtTime(freq, now);
+        osc2.frequency.setValueAtTime(freq * 1.004, now);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(isCoxon ? 0.45 : 0.38, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(state.distortion);
+
+        if (state.isShieldsMode) {
+            osc1.frequency.exponentialRampToValueAtTime(freq * 0.97, now + duration * 0.8);
+            osc2.frequency.exponentialRampToValueAtTime(freq * 1.03, now + duration * 0.8);
+        }
+
+        osc1.start();
+        osc2.start();
+        osc1.stop(now + duration + 0.2);
+        osc2.stop(now + duration + 0.2);
+    }
+
+    /**
+     * SIMULATOR LOGIC & QUOTES ENGINE
+     */
+    function getRandomQuote(category) {
+        const pool = COXON_QUOTES[category];
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function playPlayerRiff() {
+        if (state.playerNotes.length < 4) {
+            speak("Graham", "Musisz muskać te struny częściej, bym mógł wyliczyć aerodynamikę Twojego riffu.");
+            return;
+        }
+
+        state.isThinking = true;
+        document.getElementById('riff-btn').disabled = true;
+        logDebug("[STRATEGY] Coxon analizuje strukturę harmoniczną...");
+
+        setTimeout(() => {
+            let category = "midPuryzm";
+            if (state.isShieldsMode) category = "shields";
+            else if (state.melodyScore > 80) category = "highPuryzm";
+            else if (state.melodyScore < 40) category = "lowPuryzm";
+            
+            // Random chance for Oasis roast
+            if (Math.random() > 0.8) category = "oasisWar";
+
+            speak("Graham", getRandomQuote(category));
+            executePureSolo();
+        }, 800);
+    }
+
+    function executePureSolo() {
+        const steps = 14;
+        let currentStep = 0;
+        const tempo = state.currentBPM > 60 ? state.currentBPM : 130;
+        
+        logDebug(`[SOLO] JAGUAR DRIVE ACTIVATED. Steps: ${steps} | Tempo: ${tempo}`);
+
+        const soloInterval = setInterval(() => {
+            const move = [-5, -2, -1, 0, 1, 2, 4, 7, 12][Math.floor(Math.random() * 9)];
+            let fret = Math.max(0, Math.min(15, state.lastCoxonFret + move));
+            const strIdx = Math.floor(Math.random() * 6); 
+            
+            state.lastCoxonFret = fret;
+            addNote(fret, strIdx, 0, 0, true);
+            triggerVisuals(0.95);
+
+            currentStep++;
+            if (currentStep >= steps) {
+                clearInterval(soloInterval);
+                state.isThinking = false;
+                document.getElementById('riff-btn').disabled = false;
+                logDebug("[SYSTEM] Solo completed. Dave Rowntree signals the end of the bar.");
+            }
+        }, 60000 / (tempo * 2)); 
+    }
+
+    function toggleShieldsMode() {
+        state.isShieldsMode = !state.isShieldsMode;
+        const btn = document.getElementById('shields-btn');
+        if (state.isShieldsMode) {
+            btn.innerText = "SHIELDS EFFECT (ON)";
+            btn.classList.add('active');
+            document.getElementById('game-container').classList.add('shields-active');
+            document.getElementById('stat-mod').innerText = "GLIDE-GUITAR";
+            logDebug("!!! FEEDBACK ACTIVATED: Shoegaze multi-layer synthesis mode !!!");
+            speak("Graham", "Kevin Shields podpiął się pod moją pętlę efektów. Słyszysz ten glide?");
+        } else {
+            btn.innerText = "SHIELDS EFFECT (OFF)";
+            btn.classList.remove('active');
+            document.getElementById('game-container').classList.remove('shields-active');
+            document.getElementById('stat-mod').innerText = "DISTORTED";
+            logDebug("Effect: Bypassed. Jaguar returned to raw strategic distortion.");
+            speak("Graham", "Wróćmy do puryzmu. Tylko ja, Jaguar i ten drapieżny przester.");
+        }
+    }
+
+    function resetGame() {
+        state.playerNotes = [];
+        state.melodyScore = 0;
+        document.getElementById('stat-score').innerText = "0";
+        document.querySelectorAll('.note-marker').forEach(m => m.remove());
+        logDebug("Reset systemu. Wzmacniacze ostygły.");
+        speak("Graham", "Zacznijmy od nowa. Buduj napięcie powoli.");
+    }
+
+    function triggerVisuals(intensity) {
+        const lights = document.getElementById('lights');
+        lights.style.background = `radial-gradient(circle at ${Math.random()*100}% ${Math.random()*100}%, rgba(255, 0, 85, ${intensity * 0.4}), transparent)`;
+        if (intensity > 0.9) {
+            document.body.style.background = `rgba(20, 0, 5, 1)`;
+            setTimeout(() => document.body.style.background = '#050505', 50);
+        }
+    }
+
+    function speak(who, what) {
+        document.getElementById('speaker').innerText = `${who.toUpperCase()}:`;
+        document.getElementById('text').innerText = what;
+    }
+
+    function logDebug(msg) {
+        const c = document.getElementById('debug-console');
+        c.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        c.scrollTop = c.scrollHeight;
+    }
+
+    init();
+</script>
+</body>
+</html>
